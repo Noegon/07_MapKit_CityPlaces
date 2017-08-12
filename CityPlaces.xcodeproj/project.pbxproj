@@ -13,6 +13,9 @@
 		40D89E8E1F3E269400B07AB5 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 40D89E8C1F3E269400B07AB5 /* Main.storyboard */; };
 		40D89E901F3E269400B07AB5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 40D89E8F1F3E269400B07AB5 /* Assets.xcassets */; };
 		40D89E931F3E269400B07AB5 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 40D89E911F3E269400B07AB5 /* LaunchScreen.storyboard */; };
+		40D89E9C1F3E285000B07AB5 /* MapKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40D89E9B1F3E285000B07AB5 /* MapKit.framework */; };
+		40D89E9E1F3E286D00B07AB5 /* CoreLocation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 40D89E9D1F3E286D00B07AB5 /* CoreLocation.framework */; };
+		40D89EA11F3E626500B07AB5 /* PublicArt.json in Resources */ = {isa = PBXBuildFile; fileRef = 40D89EA01F3E626500B07AB5 /* PublicArt.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +29,9 @@
 		40D89E8F1F3E269400B07AB5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		40D89E921F3E269400B07AB5 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		40D89E941F3E269400B07AB5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		40D89E9B1F3E285000B07AB5 /* MapKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = MapKit.framework; path = System/Library/Frameworks/MapKit.framework; sourceTree = SDKROOT; };
+		40D89E9D1F3E286D00B07AB5 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
+		40D89EA01F3E626500B07AB5 /* PublicArt.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = PublicArt.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -33,6 +39,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				40D89E9E1F3E286D00B07AB5 /* CoreLocation.framework in Frameworks */,
+				40D89E9C1F3E285000B07AB5 /* MapKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -44,6 +52,7 @@
 			children = (
 				40D89E821F3E269400B07AB5 /* CityPlaces */,
 				40D89E811F3E269400B07AB5 /* Products */,
+				40D89E9A1F3E285000B07AB5 /* Frameworks */,
 			);
 			sourceTree = "<group>";
 		};
@@ -66,6 +75,7 @@
 				40D89E8F1F3E269400B07AB5 /* Assets.xcassets */,
 				40D89E911F3E269400B07AB5 /* LaunchScreen.storyboard */,
 				40D89E941F3E269400B07AB5 /* Info.plist */,
+				40D89EA01F3E626500B07AB5 /* PublicArt.json */,
 				40D89E831F3E269400B07AB5 /* Supporting Files */,
 			);
 			path = CityPlaces;
@@ -77,6 +87,15 @@
 				40D89E841F3E269400B07AB5 /* main.m */,
 			);
 			name = "Supporting Files";
+			sourceTree = "<group>";
+		};
+		40D89E9A1F3E285000B07AB5 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				40D89E9D1F3E286D00B07AB5 /* CoreLocation.framework */,
+				40D89E9B1F3E285000B07AB5 /* MapKit.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -138,6 +157,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				40D89EA11F3E626500B07AB5 /* PublicArt.json in Resources */,
 				40D89E931F3E269400B07AB5 /* LaunchScreen.storyboard in Resources */,
 				40D89E901F3E269400B07AB5 /* Assets.xcassets in Resources */,
 				40D89E8E1F3E269400B07AB5 /* Main.storyboard in Resources */,
@@ -275,6 +295,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = 9M22BH66EU;
 				INFOPLIST_FILE = CityPlaces/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = NGN.CityPlaces;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -287,6 +308,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = 9M22BH66EU;
 				INFOPLIST_FILE = CityPlaces/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = NGN.CityPlaces;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -312,6 +334,7 @@
 				40D89E991F3E269400B07AB5 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
