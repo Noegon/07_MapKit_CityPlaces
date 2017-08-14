@@ -34,6 +34,9 @@ static const NSInteger NGNArtworkDescription = 11;
 static const NSInteger NGNArtworkLatitude = 18; //double
 static const NSInteger NGNArtworkLongitude = 19; //double
 
+
+#pragma mark - inner classes
+
 @interface NGNPlaceAnnotation : NSObject  <MKAnnotation>
 
 @property (copy, nonatomic) NSString *additionalInfo;
@@ -47,13 +50,16 @@ static const NSInteger NGNArtworkLongitude = 19; //double
                              title:(NSString *)title
                           subtitle:(NSString *)subtitle;
 
+- (void)setTitle:(NSString *)title;
+- (void)setSubtitle:(NSString *)title;
+
 @end
 
 @implementation NGNPlaceAnnotation
 
-@synthesize coordinate = _coordinate;
 @synthesize title = _title;
 @synthesize subtitle = _subtitle;
+@synthesize coordinate = _coordinate;
 
 - (instancetype)initWithCoordinate:(CLLocationCoordinate2D)coordinate title:(NSString *)title subtitle:(NSString *)subtitle {
     return [self initWithCoordinate:coordinate title:title subtitle:subtitle additionalInfo:@"no info"];
@@ -73,13 +79,27 @@ static const NSInteger NGNArtworkLongitude = 19; //double
     return self;
 }
 
+- (void)setTitle:(NSString *)title {
+    _title = title;
+}
+
+- (void)setSubtitle:(NSString *)subtitle {
+    _subtitle = subtitle;
+}
+
 @end
 
+
+#pragma mark - main class
 
 @interface ViewController () <CLLocationManagerDelegate, MKMapViewDelegate>
 
 @property (strong, nonatomic) IBOutlet MKMapView *mapView;
 @property (strong, nonatomic) CLLocationManager *locationManager;
+@property (strong, nonatomic) __block NSMutableArray<NSArray *> *errorLocationsAnnotationsCorteges; //Cortege with location and annotation with geocode error
+@property (strong, nonatomic) dispatch_queue_attr_t myAttributes;
+@property (strong, nonatomic) dispatch_queue_t myQueue;
+@property (strong, nonatomic) dispatch_group_t myGroup;
 
 - (IBAction)styleMapButtonPressed:(UIBarButtonItem *)sender;
 - (IBAction)showUserLocation:(UIBarButtonItem *)sender;
@@ -94,6 +114,12 @@ static const NSInteger NGNArtworkLongitude = 19; //double
 
 - (void)viewDidLoad {
     [super viewDidLoad];
+    
+    self.myAttributes = dispatch_queue_attr_make_with_qos_class(nil, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
+    self.myQueue = dispatch_queue_create("com.noegon.myqueue", self.myAttributes);
+    self.myGroup = dispatch_group_create();
+    
+    self.errorLocationsAnnotationsCorteges = [[NSMutableArray alloc] init];
     
     self.locationManager = [[CLLocationManager alloc] init];
     self.locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation;
@@ -135,9 +161,11 @@ static const NSInteger NGNArtworkLongitude = 19; //double
     [geocoder reverseGeocodeLocation:location completionHandler:
      ^(NSArray<CLPlacemark *> * placemarks, NSError *error) {
          CLPlacemark *placemark = placemarks.firstObject;
+
          NGNPlaceAnnotation *annotation = [[NGNPlaceAnnotation alloc] initWithCoordinate:coordinate
                                                                                    title:placemark.name
-                                                                                subtitle:placemark.locality];
+                                                                                subtitle:placemark.locality
+                                                                          additionalInfo:@"no info"];
          [self.mapView addAnnotation:annotation];
     }];
 }
@@ -193,54 +221,132 @@ static const NSInteger NGNArtworkLongitude = 19; //double
 #pragma mark - additional hanler methods
 
 - (void)loadMapDataFromJSON {
-    dispatch_queue_t myQueue = dispatch_queue_create("com.noegon.myqueue", DISPATCH_QUEUE_SERIAL);
+    dispatch_queue_attr_t myAttributes = dispatch_queue_attr_make_with_qos_class(nil, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
+    dispatch_queue_t myQueue = dispatch_queue_create("com.noegon.myqueue", myAttributes);
+    dispatch_group_t myGroup = dispatch_group_create();
     
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        
         NSString *filePath = [[NSBundle mainBundle] pathForResource:NGNFileName ofType:NGNFileExtension];
         NSData *data = [NSData dataWithContentsOfFile:filePath];
         NSDictionary *parsedJSON = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
         NSArray *artObjectsInfo = parsedJSON[NGNJSONKey];
         
-        //cycle with GCD
-        dispatch_apply(artObjectsInfo.count - 1, myQueue, ^(size_t size) {
+        for (NSArray *artObject in artObjectsInfo) {
+            __block NGNPlaceAnnotation *annotation = nil;
+            __block NSError *annotationError = nil;
+
             CLLocationCoordinate2D coordinate =
-                CLLocationCoordinate2DMake([artObjectsInfo[size][NGNArtworkLatitude] doubleValue],
-                                           [artObjectsInfo[size][NGNArtworkLongitude] doubleValue]);
+                CLLocationCoordinate2DMake([artObject[NGNArtworkLatitude] doubleValue],
+                                           [artObject[NGNArtworkLongitude] doubleValue]);
             
             CLLocation *location = [[CLLocation alloc] initWithLatitude:coordinate.latitude longitude:coordinate.longitude];
             
             CLGeocoder *geocoder = [[CLGeocoder alloc] init];
-#warning placemarks doesn't work sometimes, I could not get placemark.locality in part cases. Is there some problem with concurrency?
-            [geocoder reverseGeocodeLocation:location completionHandler:
+
+            dispatch_group_enter(myGroup);
+                        [geocoder reverseGeocodeLocation:location completionHandler:
              ^(NSArray<CLPlacemark *> * placemarks, NSError *error) {
-                 
-                 CLPlacemark *placemark = [placemarks objectAtIndex:0];
-                 
-                 NSString *title = [NSString stringWithFormat:@"%@",
-                                    (![artObjectsInfo[size][NGNArtworkName] isEqual:[NSNull null]] ?
-                                     artObjectsInfo[size][NGNArtworkName] :
-                                     NGNMessageNoArtworkName)];
-                 NSString *subtitle = [NSString stringWithFormat:@"%@",
-                                       (![artObjectsInfo[size][NGNArtworkAuthor] isEqual:[NSNull null]] ?
-                                        artObjectsInfo[size][NGNArtworkAuthor] :
-                                       NGNMessageNoAuthor)];
-                 NSString *additionalInfo = [NSString stringWithFormat:@"%@\n%@\n%@\n%@\n%@",
-                                             artObjectsInfo[size][NGNArtworkName],
-                                             artObjectsInfo[size][NGNArtworkAuthor],
-                                             artObjectsInfo[size][NGNArtworkType],
-                                             artObjectsInfo[size][NGNArtworkYearOfCreation],
-                                             artObjectsInfo[size][NGNArtworkDescription]];
-                 //goto main queue
-                 dispatch_async(dispatch_get_main_queue(), ^{
-                     NGNPlaceAnnotation *annotation = [[NGNPlaceAnnotation alloc] initWithCoordinate:coordinate
-                                                                                               title:title
-                                                                                            subtitle:subtitle
-                                                                                      additionalInfo:additionalInfo];
-                     [self.mapView addAnnotation:annotation];
+                 dispatch_group_async(myGroup, myQueue, ^{
+                     
+                         CLPlacemark *placemark = [placemarks objectAtIndex:0];
+                         
+                         NSString *title = [NSString stringWithFormat:@"%@",
+                                            (![artObject[NGNArtworkName] isEqual:[NSNull null]] ?
+                                             artObject[NGNArtworkName] :
+                                             NGNMessageNoArtworkName)];
+                         
+                         NSString *subtitle = [NSString stringWithFormat:@"%@ - %@", placemark.locality, placemark.name];
+                         
+                         NSString *additionalInfo = [NSString stringWithFormat:@"%@\n%@\n%@\n%@\n%@",
+                                                     artObject[NGNArtworkName],
+                                                     artObject[NGNArtworkAuthor],
+                                                     artObject[NGNArtworkType],
+                                                     artObject[NGNArtworkYearOfCreation],
+                                                     artObject[NGNArtworkDescription]];
+                         
+                         annotation = [[NGNPlaceAnnotation alloc] initWithCoordinate:coordinate
+                                                                               title:title
+                                                                            subtitle:subtitle
+                                                                      additionalInfo:additionalInfo];
+                     
+                     if (error.code == 2) {
+                         dispatch_barrier_async(myQueue, ^{
+                             [self.errorLocationsAnnotationsCorteges addObject:@[location, annotation]];
+                             annotationError = error;
+                         });
+                     }
+                     dispatch_group_leave(myGroup);
                  });
              }];
-        });
+            
+            dispatch_wait(myGroup, DISPATCH_TIME_FOREVER);
+            
+            dispatch_group_enter(myGroup);
+            dispatch_group_async(myGroup, dispatch_get_main_queue(), ^{
+                if (!annotationError) {
+                    [self.mapView addAnnotation:annotation];
+                }
+                dispatch_group_leave(myGroup);
+            });
+            
+            dispatch_wait(myGroup, DISPATCH_TIME_FOREVER);
+        }
+        
+        NSLog(@"%ld", self.errorLocationsAnnotationsCorteges.count);
+        
+        while (self.errorLocationsAnnotationsCorteges.count > 0) {
+            sleep(5);
+            [self loadErrorsHandlingWithLocations:self.errorLocationsAnnotationsCorteges];
+            NSLog(@"errors: %ld", self.errorLocationsAnnotationsCorteges.count);
+        }
     });
+}
+
+- (void)loadErrorsHandlingWithLocations:(NSMutableArray <NSArray *> *)locationsAnnotationsCorteges {
+    NSMutableArray *resultErrorLocationsAnnotationsCorteges = [locationsAnnotationsCorteges mutableCopy];
+    
+    dispatch_queue_attr_t myAttributes = dispatch_queue_attr_make_with_qos_class(nil, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
+    dispatch_queue_t myQueue = dispatch_queue_create("com.noegon.myqueue", myAttributes);
+    dispatch_group_t myGroup = dispatch_group_create();
+    
+    for (NSArray *locationsAnnotationsCortrge in locationsAnnotationsCorteges) {
+        __block NSError *annotationError = nil;
+        
+        CLGeocoder *geocoder = [[CLGeocoder alloc] init];
+        
+        dispatch_group_enter(myGroup);
+        [geocoder reverseGeocodeLocation:locationsAnnotationsCortrge[0] completionHandler:
+         ^(NSArray<CLPlacemark *> * placemarks, NSError *error) {
+             dispatch_group_async(myGroup, myQueue, ^{
+                 if (!error) {
+                     CLPlacemark *placemark = [placemarks objectAtIndex:0];
+                     
+                     NGNPlaceAnnotation *annotation = locationsAnnotationsCortrge[1];
+                     annotation.subtitle = [NSString stringWithFormat:@"%@ - %@", placemark.locality, placemark.name];
+                     
+                 } else {
+                     annotationError = error;
+                 }
+                 dispatch_group_leave(myGroup);
+             });
+         }];
+        
+        dispatch_wait(myGroup, DISPATCH_TIME_FOREVER);
+        
+        dispatch_group_enter(myGroup);
+        dispatch_group_async(myGroup, dispatch_get_main_queue(), ^{
+            if (!annotationError) {
+                [self.mapView addAnnotation:locationsAnnotationsCortrge[1]];
+                [resultErrorLocationsAnnotationsCorteges removeObject:locationsAnnotationsCortrge];
+            }
+            dispatch_group_leave(myGroup);
+        });
+        
+        dispatch_wait(myGroup, DISPATCH_TIME_FOREVER);
+    }
+    
+    self.errorLocationsAnnotationsCorteges = resultErrorLocationsAnnotationsCorteges;
 }
 
 @end
