@@ -96,7 +96,7 @@ static const NSInteger NGNArtworkLongitude = 19; //double
 
 @property (strong, nonatomic) IBOutlet MKMapView *mapView;
 @property (strong, nonatomic) CLLocationManager *locationManager;
-@property (strong, nonatomic) __block NSMutableArray<NSArray *> *errorLocationsAnnotationsCorteges; //Cortege with location and annotation with geocode error
+@property (strong, atomic) __block NSMutableArray<NSArray *> *errorLocationsAnnotationsCorteges; //Cortege with location and annotation with geocode error
 @property (strong, nonatomic) dispatch_queue_attr_t myAttributes;
 @property (strong, nonatomic) dispatch_queue_t myQueue;
 @property (strong, nonatomic) dispatch_group_t myGroup;
@@ -166,7 +166,14 @@ static const NSInteger NGNArtworkLongitude = 19; //double
                                                                                    title:placemark.name
                                                                                 subtitle:placemark.locality
                                                                           additionalInfo:@"no info"];
-         [self.mapView addAnnotation:annotation];
+         if (error.code == 2) {
+             dispatch_barrier_async(self.myQueue, ^{
+                 [self.errorLocationsAnnotationsCorteges addObject:@[location, annotation]];
+             });
+         } else {
+            [self.mapView addAnnotation:annotation];
+         }
+
     }];
 }
 
@@ -221,10 +228,6 @@ static const NSInteger NGNArtworkLongitude = 19; //double
 #pragma mark - additional hanler methods
 
 - (void)loadMapDataFromJSON {
-    dispatch_queue_attr_t myAttributes = dispatch_queue_attr_make_with_qos_class(nil, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
-    dispatch_queue_t myQueue = dispatch_queue_create("com.noegon.myqueue", myAttributes);
-    dispatch_group_t myGroup = dispatch_group_create();
-    
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         
         NSString *filePath = [[NSBundle mainBundle] pathForResource:NGNFileName ofType:NGNFileExtension];
@@ -244,10 +247,10 @@ static const NSInteger NGNArtworkLongitude = 19; //double
             
             CLGeocoder *geocoder = [[CLGeocoder alloc] init];
 
-            dispatch_group_enter(myGroup);
+            dispatch_group_enter(self.myGroup);
                         [geocoder reverseGeocodeLocation:location completionHandler:
              ^(NSArray<CLPlacemark *> * placemarks, NSError *error) {
-                 dispatch_group_async(myGroup, myQueue, ^{
+                 dispatch_group_async(self.myGroup, self.myQueue, ^{
                      
                          CLPlacemark *placemark = [placemarks objectAtIndex:0];
                          
@@ -271,82 +274,81 @@ static const NSInteger NGNArtworkLongitude = 19; //double
                                                                       additionalInfo:additionalInfo];
                      
                      if (error.code == 2) {
-                         dispatch_barrier_async(myQueue, ^{
+                         dispatch_barrier_async(self.myQueue, ^{
                              [self.errorLocationsAnnotationsCorteges addObject:@[location, annotation]];
                              annotationError = error;
                          });
                      }
-                     dispatch_group_leave(myGroup);
+                     dispatch_group_leave(self.myGroup);
                  });
              }];
             
-            dispatch_wait(myGroup, DISPATCH_TIME_FOREVER);
+            dispatch_wait(self.myGroup, DISPATCH_TIME_FOREVER);
             
-            dispatch_group_enter(myGroup);
-            dispatch_group_async(myGroup, dispatch_get_main_queue(), ^{
+            dispatch_group_enter(self.myGroup);
+            dispatch_group_async(self.myGroup, dispatch_get_main_queue(), ^{
                 if (!annotationError) {
                     [self.mapView addAnnotation:annotation];
                 }
-                dispatch_group_leave(myGroup);
+                dispatch_group_leave(self.myGroup);
             });
             
-            dispatch_wait(myGroup, DISPATCH_TIME_FOREVER);
+            dispatch_wait(self.myGroup, DISPATCH_TIME_FOREVER);
         }
         
-        NSLog(@"%ld", self.errorLocationsAnnotationsCorteges.count);
+        NSLog(@"errors: %ld", self.errorLocationsAnnotationsCorteges.count);
         
         while (self.errorLocationsAnnotationsCorteges.count > 0) {
             sleep(5);
-            [self loadErrorsHandlingWithLocations:self.errorLocationsAnnotationsCorteges];
+            [self loadErrorsHandlingWithLocations];
             NSLog(@"errors: %ld", self.errorLocationsAnnotationsCorteges.count);
         }
     });
 }
 
-- (void)loadErrorsHandlingWithLocations:(NSMutableArray <NSArray *> *)locationsAnnotationsCorteges {
-    NSMutableArray *resultErrorLocationsAnnotationsCorteges = [locationsAnnotationsCorteges mutableCopy];
-    
-    dispatch_queue_attr_t myAttributes = dispatch_queue_attr_make_with_qos_class(nil, QOS_CLASS_USER_INITIATED, DISPATCH_QUEUE_PRIORITY_HIGH);
-    dispatch_queue_t myQueue = dispatch_queue_create("com.noegon.myqueue", myAttributes);
-    dispatch_group_t myGroup = dispatch_group_create();
-    
-    for (NSArray *locationsAnnotationsCortrge in locationsAnnotationsCorteges) {
-        __block NSError *annotationError = nil;
+- (void)loadErrorsHandlingWithLocations {
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+        NSMutableArray *resultErrorLocationsAnnotationsCorteges = [self.errorLocationsAnnotationsCorteges mutableCopy];
         
-        CLGeocoder *geocoder = [[CLGeocoder alloc] init];
-        
-        dispatch_group_enter(myGroup);
-        [geocoder reverseGeocodeLocation:locationsAnnotationsCortrge[0] completionHandler:
-         ^(NSArray<CLPlacemark *> * placemarks, NSError *error) {
-             dispatch_group_async(myGroup, myQueue, ^{
-                 if (!error) {
-                     CLPlacemark *placemark = [placemarks objectAtIndex:0];
-                     
-                     NGNPlaceAnnotation *annotation = locationsAnnotationsCortrge[1];
-                     annotation.subtitle = [NSString stringWithFormat:@"%@ - %@", placemark.locality, placemark.name];
-                     
-                 } else {
-                     annotationError = error;
-                 }
-                 dispatch_group_leave(myGroup);
-             });
-         }];
-        
-        dispatch_wait(myGroup, DISPATCH_TIME_FOREVER);
-        
-        dispatch_group_enter(myGroup);
-        dispatch_group_async(myGroup, dispatch_get_main_queue(), ^{
-            if (!annotationError) {
-                [self.mapView addAnnotation:locationsAnnotationsCortrge[1]];
-                [resultErrorLocationsAnnotationsCorteges removeObject:locationsAnnotationsCortrge];
-            }
-            dispatch_group_leave(myGroup);
-        });
-        
-        dispatch_wait(myGroup, DISPATCH_TIME_FOREVER);
-    }
-    
-    self.errorLocationsAnnotationsCorteges = resultErrorLocationsAnnotationsCorteges;
+        for (NSArray *locationsAnnotationsCortrge in resultErrorLocationsAnnotationsCorteges) {
+            __block NSError *annotationError = nil;
+            
+            CLGeocoder *geocoder = [[CLGeocoder alloc] init];
+            
+            dispatch_group_enter(self.myGroup);
+            [geocoder reverseGeocodeLocation:locationsAnnotationsCortrge[0] completionHandler:
+             ^(NSArray<CLPlacemark *> * placemarks, NSError *error) {
+                 dispatch_group_async(self.myGroup, self.myQueue, ^{
+                     if (!error) {
+                         CLPlacemark *placemark = [placemarks objectAtIndex:0];
+                         
+                         NGNPlaceAnnotation *annotation = locationsAnnotationsCortrge[1];
+                         annotation.subtitle = [NSString stringWithFormat:@"%@ - %@", placemark.locality, placemark.name];
+                         if (!annotation.title) {
+                             annotation.title = placemark.name;
+                         }
+                         
+                     } else {
+                         annotationError = error;
+                     }
+                     dispatch_group_leave(self.myGroup);
+                 });
+             }];
+            
+            dispatch_wait(self.myGroup, DISPATCH_TIME_FOREVER);
+            
+            dispatch_group_enter(self.myGroup);
+            dispatch_group_async(self.myGroup, dispatch_get_main_queue(), ^{
+                if (!annotationError) {
+                    [self.mapView addAnnotation:locationsAnnotationsCortrge[1]];
+                    [self.errorLocationsAnnotationsCorteges removeObject:locationsAnnotationsCortrge];
+                }
+                dispatch_group_leave(self.myGroup);
+            });
+            
+            dispatch_wait(self.myGroup, DISPATCH_TIME_FOREVER);
+        }
+    });
 }
 
 @end
